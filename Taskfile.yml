@@ -16,8 +16,8 @@ tasks:
     deps:
       - hcltest
     cmds:
-      - ./hcltest --vars testdata/variables.hcl testdata/test.hcl --output json
-      - ./hcltest --vars testdata/variables.hcl testdata/test.hcl --output hcl
+      - diff <(./hcltest --vars testdata/variables.hcl testdata/test.hcl --output json) testdata/expected.json
+      - diff <(./hcltest --vars testdata/variables.hcl testdata/test.hcl --output hcl) testdata/expected.hcl
   clean:
     desc: removes generated files
     ignore_error: true

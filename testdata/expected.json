@@ -1,0 +1,16 @@
+{
+  "Servers": [
+    {
+      "Name": "Amazon",
+      "Addr": "https://www.amazon.com"
+    },
+    {
+      "Name": "Google",
+      "Addr": "https://www.google.com"
+    },
+    {
+      "Name": "Beer dot com",
+      "Addr": "HTTPS://www.beer.com"
+    }
+  ]
+}
