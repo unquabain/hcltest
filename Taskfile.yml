@@ -1,0 +1,25 @@
+version: "3"
+
+tasks:
+  hcltest:
+    aliases:
+      - build
+    desc: Builds the executable
+    sources:
+      - go.*
+      - '*.go'
+    generates:
+      - hcltest
+    cmd: go build
+  test:
+    desc: Runs a basic test
+    deps:
+      - hcltest
+    cmds:
+      - ./hcltest --vars testdata/variables.hcl testdata/test.hcl --output json
+      - ./hcltest --vars testdata/variables.hcl testdata/test.hcl --output hcl
+  clean:
+    desc: removes generated files
+    ignore_error: true
+    cmds:
+      - rm hcltest
