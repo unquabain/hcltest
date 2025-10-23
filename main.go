@@ -1,6 +1,6 @@
 /* hcltest
  *
- * This is a little function to explore HashiCorp's HCL library in Go
+ * This is a little program to explore HashiCorp's HCL library in Go
  * for the purpose of seeing whether it would be a good format for configuration
  * of simple programs and microservices written in Go.
  */
