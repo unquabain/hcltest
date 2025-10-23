@@ -40,6 +40,14 @@ type Config struct {
 	Servers []Server `hcl:"server,block"`
 }
 
+type ArgsRunMode int
+
+const (
+	DocumentFuncMode ArgsRunMode = iota
+	DocumentAllFuncsMode
+	SerdeMode
+)
+
 // Args just handles CLI argument parsing.
 type Args struct {
 	Funcs     bool
@@ -68,50 +76,81 @@ func (t *Args) Parse() error {
 	return nil
 }
 
-func main() {
-	args := new(Args)
-	if err := args.Parse(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
-		os.Exit(-1)
+func (t *Args) runMode() ArgsRunMode {
+	if t.Funcs {
+		return DocumentAllFuncsMode
 	}
-
-	// Handle some query options to inspect some of the standard library
-	// template functions. See function.go for details.
-	if args.Func != `` {
-		fname, desc, found := FuncDescription(args.Func)
-		if !found {
-			fmt.Fprintf(os.Stderr, "Unknown function %s\n", args.Func)
-			os.Exit(-1)
-		}
-		fmt.Printf("%s\n\t%s\n", fname, desc)
-		return
-	} else if args.Funcs {
-		fds := FuncDescriptions()
-		for _, fname := range slices.Sorted(maps.Keys(fds)) {
-			fdesc := fds[fname]
-			fmt.Printf("%s\n\t%s\n", fname, fdesc)
-		}
-		return
+	if t.Func != `` {
+		return DocumentFuncMode
 	}
+	return SerdeMode
+}
 
-	// A config file to try to deserialize
-	var config Config
+// Fatalf is an alient who has eaten too many cats.
+func (Args) Fatalf(msg string, args ...any) {
+	fmt.Fprintf(os.Stderr, msg, args...)
+	os.Exit(-1)
+}
 
-	// Variables to deserialize from a separate file, optionally.
-	vars := make(map[string]cty.Value)
-	ctx := hcl.EvalContext{
-		Variables: vars,
+func (t *Args) Run() {
+	switch m := t.runMode(); m {
+	case DocumentAllFuncsMode:
+		t.documentAllFuncs()
+	case DocumentFuncMode:
+		t.documentFunc()
+	case SerdeMode:
+		t.serde()
+	default:
+		t.Fatalf(`unknown run mode: %d`, m)
+	}
+}
+
+func (Args) documentAllFuncs() {
+	fds := FuncDescriptions()
+	for _, fname := range slices.Sorted(maps.Keys(fds)) {
+		fdesc := fds[fname]
+		fmt.Printf("%s\n\t%s\n", fname, fdesc)
+	}
+}
+
+func (t *Args) documentFunc() {
+	fname, desc, found := FuncDescription(t.Func)
+	if !found {
+		t.Fatalf("Unknown function %s\n", t.Func)
+	}
+	fmt.Printf("%s\n\t%s\n", fname, desc)
+}
+
+func (t *Args) make_context() *hcl.EvalContext {
+	ctx := &hcl.EvalContext{
+		Variables: make(map[string]cty.Value),
 		Functions: funcmap,
 	}
-	if args.Variables != `` {
-		// Read the variables file into the map
-		if err := hclsimple.DecodeFile(args.Variables, nil, &vars); err != nil {
-			fmt.Fprintf(os.Stderr, `could not read variable file: %s`, err.Error())
-			os.Exit(-1)
-		}
-		ctx.Variables = vars
-	}
+	t.get_variables(ctx)
+	return ctx
 
+}
+
+func (t *Args) get_variables(ctx *hcl.EvalContext) {
+	// Variables to deserialize from a separate file, optionally.
+	if t.Variables != `` {
+		// Read the variables file into the map
+		if err := hclsimple.DecodeFile(t.Variables, nil, &ctx.Variables); err != nil {
+			t.Fatalf(`could not read variable file: %s`, err.Error())
+		}
+	}
+}
+
+func (t *Args) serde() {
+	// A config file to try to deserialize
+	var config Config
+	t.deserialize(&config)
+	t.serialize(config)
+
+}
+
+func (t *Args) deserialize(config *Config) {
+	ctx := t.make_context()
 	// Read the config file from the source.
 	/*
 		// This is the simple implementation if we're not using any extensions.
@@ -122,14 +161,15 @@ func main() {
 	*/
 
 	// This is a more involved example that shows how to use an extension to pre-parse the body.
-	if file, err := hclparse.NewParser().ParseHCLFile(args.Filename); err.HasErrors() {
-		fmt.Fprintf(os.Stderr, `could not parse file: %s`, err.Error())
-		os.Exit(-1)
-	} else if err := gohcl.DecodeBody(dynblock.Expand(file.Body, &ctx), &ctx, &config); err.HasErrors() {
-		fmt.Fprintf(os.Stderr, `could not decode body: %s`, err.Error())
-		os.Exit(-1)
+	if file, err := hclparse.NewParser().ParseHCLFile(t.Filename); err.HasErrors() {
+		t.Fatalf(`could not parse file: %s`, err.Error())
+	} else if err := gohcl.DecodeBody(dynblock.Expand(file.Body, ctx), ctx, config); err.HasErrors() {
+		t.Fatalf(`could not decode body: %s`, err.Error())
 	}
-	switch args.Output {
+}
+
+func (t *Args) serialize(config Config) {
+	switch t.Output {
 	case `json`:
 
 		// Print this out using the normal Go JSON encoder
@@ -144,7 +184,15 @@ func main() {
 		gohcl.EncodeIntoBody(config, hclFile.Body())
 		os.Stdout.Write(hclFile.Bytes())
 	default:
-		fmt.Fprintf(os.Stderr, `unknown output format %s; valid formats are json and hcl`, args.Output)
+		t.Fatalf(`unknown output format %s; valid formats are json and hcl`, t.Output)
+	}
+}
+
+func main() {
+	args := new(Args)
+	if err := args.Parse(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(-1)
 	}
+	args.Run()
 }
