@@ -86,7 +86,7 @@ func (t *Args) runMode() ArgsRunMode {
 	return SerdeMode
 }
 
-// Fatalf is an alient who has eaten too many cats.
+// Fatalf is an alien who has eaten too many cats.
 func (Args) Fatalf(msg string, args ...any) {
 	fmt.Fprintf(os.Stderr, msg, args...)
 	os.Exit(-1)
@@ -133,11 +133,12 @@ func (t *Args) make_context() *hcl.EvalContext {
 
 func (t *Args) get_variables(ctx *hcl.EvalContext) {
 	// Variables to deserialize from a separate file, optionally.
-	if t.Variables != `` {
-		// Read the variables file into the map
-		if err := hclsimple.DecodeFile(t.Variables, nil, &ctx.Variables); err != nil {
-			t.Fatalf(`could not read variable file: %s`, err.Error())
-		}
+	if t.Variables == `` {
+		return
+	}
+	// Read the variables file into the map
+	if err := hclsimple.DecodeFile(t.Variables, nil, &ctx.Variables); err != nil {
+		t.Fatalf(`could not read variable file: %s`, err.Error())
 	}
 }
 
